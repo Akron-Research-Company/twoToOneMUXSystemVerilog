@@ -1,0 +1,66 @@
+name: Package Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PROJECT_NAME: "2-to-1-mux"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Create archives
+        run: | 
+          mkdir -p /tmp/"${{ env.PROJECT_NAME }}"
+
+          zip -r /tmp/"${{ env.PROJECT_NAME }}"/"${{ env.PROJECT_NAME }}".zip . \
+            -x ".git/*" \
+            -x ".github/*"
+
+          tar \
+            --exclude=".git" \
+            --exclude=".github" \
+            -cf /tmp/"${{ env.PROJECT_NAME }}"/"${{ env.PROJECT_NAME }}".tar .
+
+          tar \
+            --exclude=".git" \
+            --exclude=".github" \
+            -czf /tmp/"${{ env.PROJECT_NAME }}"/"${{ env.PROJECT_NAME }}".tar.gz .
+
+          cp /tmp/"${{ env.PROJECT_NAME }}"/* .  
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists."
+            echo "Replacing existing archives..."
+
+            gh release upload "$TAG" \
+              "./"${{ env.PROJECT_NAME }}".zip" \
+              "./"${{ env.PROJECT_NAME }}".tar" \
+              "./"${{ env.PROJECT_NAME }}".tar.gz" \
+              --clobber
+          else
+            echo "Release $TAG does not exist."
+            echo "Creating release..."
+
+            gh release create "$TAG" \
+              "./"${{ env.PROJECT_NAME }}".zip" \
+              "./"${{ env.PROJECT_NAME }}".tar" \
+              "./"${{ env.PROJECT_NAME }}".tar.gz" \
+              --generate-notes
+          fi
